@@ -1,0 +1,2 @@
+EDC = 0.005
+KM_COMPLAINT = 2
