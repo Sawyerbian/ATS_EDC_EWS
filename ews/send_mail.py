@@ -1,7 +1,10 @@
 import smtplib
 import email.utils
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from pathlib import Path
+import pandas as pd
+from pandas import DataFrame
 import os
 from dotenv import load_dotenv
 dotenv_path = Path(__file__).resolve().parent.parent / ".env"
@@ -22,9 +25,70 @@ username = 'bih1wx'
 # password = NT_PASSWORD
 # Create the message
 
-def send_report(Subject=None, content_1= "", content_2="", to_all= False):
-    msg = MIMEText(f'Dear : Mr./Ms. \n {content_1}.\n {content_2}.\n        Best Regards\n\thaizhong\n')
+def df_to_html_clean(df):
+    # Convert DataFrame to HTML without index
+    return df.to_html(index=False, classes="styled-table", border=0, escape=False)
+
+def send_report(Subject=None, content_1= "", content_2="", df=pd.DataFrame(),df2=pd.DataFrame(),to_all= False):
+    msg = MIMEMultipart("alternative")
+    # msg.attach(MIMEText(f'Dear : Mr./Ms. \n {content_1}.\n {content_2}.\n        Best Regards\n\thaizhong\n'))
+
+    html_content = f"""
+<html>
+<head>
+<style>
+    body {{
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f9f9f9;
+        color: #333;
+        line-height: 1.6;
+    }}
+    .styled-table {{
+        border-collapse: collapse;
+        margin: 20px 0;
+        font-size: 14px;
+        width: 100%;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }}
+    .styled-table th {{
+        background-color: #009879;
+        color: #ffffff;
+        padding: 10px;
+        text-align: center;
+    }}
+    .styled-table td {{
+        padding: 8px;
+        text-align: center;
+    }}
+    .styled-table tr:nth-child(even) {{
+        background-color: #f3f3f3;
+    }}
+    .styled-table tr:hover {{
+        background-color: #f1f1f1;
+    }}
+</style>
+</head>
+<body>
+    <h2 style="color: #009879;">{Subject}</h2>
+    <p>Dear Mr./Ms.,</p>
+    <p>{content_1}<br>{content_2}</p>
+    {df_to_html_clean(df)}
+    <p>Detailed Report</p>
+    {df_to_html_clean(df2)}
+    <p>Best Regards,<br><b>Haizhong</b></p>
+</body>
+</html>
+"""
+
+
+    msg.attach(MIMEText(html_content, "html"))
     msg.set_unixfrom('LiWenxing')
+
+
+
+
+
+    
     if to_all:
         msg['To'] = email.utils.formataddr(('bianhaizhong', bianhaizhong))
         msg['To'] = email.utils.formataddr(("xupeng", xupeng))
@@ -58,4 +122,4 @@ def send_report(Subject=None, content_1= "", content_2="", to_all= False):
         server.quit()
 
 if __name__ == "__main__":
-    send_report(Subject="test_sending_mail", to_all=True)
+    send_report(Subject="test_sending_mail", to_all=False)
