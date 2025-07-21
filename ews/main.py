@@ -12,14 +12,22 @@ from itertools import product
 from datetime import datetime, timedelta
 xlsx_dir_path = r"\\bosch.com\dfsRB\DfsCN\loc\WX4\Dept\TER\10_QMM\13 QMC\14 Reporting\00 Monthly quality reports\PowerBi\Customer 2023\Able to clean customers\Final_Output_folder"
 def EDC_MONITOR():
+    def filter_month(current_month : int):
+        if date.today().day > 20:
+            return current_month
+        else:
+            return current_month - 1
     Customer_summary_Output_By_FailMonth = pd.read_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output_By_FailMonth.xlsx"))
-    
+
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.Fail_Month.notna()]
     Customer_summary_Output_By_FailMonth.loc[:,"Totol_Cost_Sum"] = Customer_summary_Output_By_FailMonth.loc[:,"Totol_Cost_Sum"].fillna(0)
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.loc[:,"Material"].apply(lambda x:len(str(x))==12)]  # EXCLUDE ["非RBCW产品",NAN]
-    Customer_summary_Output_By_FailMonth.loc[:,"year"] = Customer_summary_Output_By_FailMonth.loc[:,"Fail_Month"].apply(lambda x:int(str(x)[:4]))
+    # Customer_summary_Output_By_FailMonth.loc[:,"year"] = Customer_summary_Output_By_FailMonth.loc[:,"Fail_Month"].apply(lambda x:int(str(x)[:4]))
+    Customer_summary_Output_By_FailMonth['year'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Fail_Month'], errors='coerce').dt.year
+    Customer_summary_Output_By_FailMonth['month'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Fail_Month'], errors='coerce').dt.month
     Customer_summary_Output_By_FailMonth.to_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output_By_FailMonth_detail.xlsx"))
     row_df = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.year == date.today().year]
+    row_df = row_df[Customer_summary_Output_By_FailMonth.month == filter_month(date.today().month)]
     Customer_summary_Output_By_FailYear = Customer_summary_Output_By_FailMonth.dropna(subset="TNS_Year")
     Customer_summary_Output_By_FailYear = Customer_summary_Output_By_FailYear.drop_duplicates(subset=["Customer_Name", "Material","year"])
     Customer_summary_Output_By_FailYear = Customer_summary_Output_By_FailYear.loc[:,["Customer_Name", "year", "TNS_Year"]]
@@ -30,11 +38,7 @@ def EDC_MONITOR():
     Customer_summary_Output_By_FailMonth_year_edc.loc[:,"edc"] = Customer_summary_Output_By_FailMonth_year_edc.loc[:,"Totol_Cost_Sum"]/ Customer_summary_Output_By_FailMonth_year_edc.loc[:,"TNS_Year"]
     Customer_summary_Output_By_FailMonth_year_edc.loc[:,"current_year"] = date.today().year
     Customer_summary_Output_By_FailMonth_year_edc.loc[:,"current_month"] = date.today().month
-    def filter_month(current_month : int):
-        if date.today().day > 20:
-            return current_month
-        else:
-            return current_month - 1
+
 
     Customer_summary_Output_By_FailMonth_year_edc.loc[:,"current_month"] = Customer_summary_Output_By_FailMonth_year_edc.loc[:,"current_month"].apply(lambda x:filter_month(x))
     Customer_summary_Output_By_FailMonth_year_edc = Customer_summary_Output_By_FailMonth_year_edc[Customer_summary_Output_By_FailMonth_year_edc.index.get_level_values("year") == Customer_summary_Output_By_FailMonth_year_edc.current_year]
@@ -60,13 +64,20 @@ def EDC_MONITOR():
         df2 = row_df[row_df.Customer_Name == customer]
         send_report(Subject="EDC Warning",content_1=f"您好， {Customer_Name}客户,{current_year}年{current_month}月YTD, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。",df=customer_df, df2=df2, to_all=True)
         time.sleep(10)
-
+    return True
 
 def SHORT_KM_MONITOR():
+    def filter_month(current_month : int):
+        if date.today().day > 20:
+            return current_month
+        else:
+            return current_month - 1
     Customer_summary_Output_By_FailMonth = pd.read_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output.xlsx"))
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.Mileage <= 1000]
     Customer_summary_Output_By_FailMonth['year'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Statistic month'], errors='coerce').dt.year
+    Customer_summary_Output_By_FailMonth['month'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Statistic month'], errors='coerce').dt.month
     row_df = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.year == date.today().year]
+    row_df = row_df[Customer_summary_Output_By_FailMonth.month == filter_month(date.today().month)]
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[["Customer", "Statistic month","Mileage"]].groupby(["Customer", "Statistic month"]).count()
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth.rename(columns={"Mileage":"Mil<1000 Qty"})
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth.reset_index()
@@ -74,23 +85,20 @@ def SHORT_KM_MONITOR():
     Customer_summary_Output_By_FailMonth.loc[:,"year"] = Customer_summary_Output_By_FailMonth.loc[:,"Statistic month"].apply(lambda x:int(str(x)[:4]))
     Customer_summary_Output_By_FailMonth['year'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Statistic month'], errors='coerce').dt.year
     Customer_summary_Output_By_FailMonth['month'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Statistic month'], errors='coerce').dt.month
-    
+
     Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth
     Customer_summary_Output_By_FailMonth_year_complaint.loc[:,"current_year"] = date.today().year
     Customer_summary_Output_By_FailMonth_year_complaint.loc[:,"current_month"] = date.today().month
-    def filter_month(current_month : int):
-        if date.today().day > 20:
-            return current_month
-        else:
-            return current_month - 1
+
 
     Customer_summary_Output_By_FailMonth_year_complaint.loc[:,"current_month"] = Customer_summary_Output_By_FailMonth_year_complaint.loc[:,"current_month"].apply(lambda x:filter_month(x))
     Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth_year_complaint[Customer_summary_Output_By_FailMonth_year_complaint.year == Customer_summary_Output_By_FailMonth_year_complaint.current_year]
+    Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth_year_complaint[Customer_summary_Output_By_FailMonth_year_complaint.month == Customer_summary_Output_By_FailMonth_year_complaint.current_month]
     Customer_summary_Output_By_FailMonth_year_complaint.to_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output_By_FailMonth_year_complaint.xlsx"))
 
-    Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth_year_complaint[Customer_summary_Output_By_FailMonth_year_complaint.loc[:,"Mil<1000 Qty"] > 2]
+    Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth_year_complaint[Customer_summary_Output_By_FailMonth_year_complaint.loc[:,"Mil<1000 Qty"] > KM_COMPLAINT]
     Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth_year_complaint.reset_index(drop=True).sort_values("Customer")
-    Customer_summary_Output_By_FailMonth_year_complaint = Customer_summary_Output_By_FailMonth_year_complaint[Customer_summary_Output_By_FailMonth_year_complaint.month == Customer_summary_Output_By_FailMonth_year_complaint.current_month]
+
 
     for customer in Customer_summary_Output_By_FailMonth_year_complaint.Customer.unique():
         customer_df = Customer_summary_Output_By_FailMonth_year_complaint[Customer_summary_Output_By_FailMonth_year_complaint.Customer == customer]
@@ -107,8 +115,10 @@ def SHORT_KM_MONITOR():
         report_tuple = tuple(report_list)
         report_text = report_text.join(report_tuple)
         df2 = row_df[row_df.Customer == customer]
-        send_report(Subject="1000KM Complaint Warning",content_1=f"您好:\n {report_text}, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。", df=customer_df,df2=df2,to_all=True)
+        new_qty = len(df2)
+        send_report(Subject="1000KM Complaint Warning",content_1=f"您好:\n {report_text}, {current_month}月新增<1000Km失效{new_qty}件,请调查原因并提供改进措施，谢谢。", df=customer_df,df2=df2,to_all=True)
         time.sleep(10)
+    return True
 
 def FAIL_QTY_MONITOR():
     Customer_summary_Output_By_FailMonth = pd.read_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output_By_FailMonth.xlsx"))
@@ -116,9 +126,10 @@ def FAIL_QTY_MONITOR():
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.Fail_Month.notna()]
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.TNS_QTY.notna()]
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.Totol_Cost_Sum.notna()]
-    Customer_summary_Output_By_FailMonth.loc[:,"year"] = Customer_summary_Output_By_FailMonth.loc[:,"Fail_Month"].apply(lambda x:int(str(x)[:4]))
-    Customer_summary_Output_By_FailMonth.loc[:,"month"] = Customer_summary_Output_By_FailMonth.loc[:,"Fail_Month"].apply(lambda x:int(str(x)[5:7]))
+    Customer_summary_Output_By_FailMonth.loc[:,"year"] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Fail_Month'], errors='coerce').dt.year
+    Customer_summary_Output_By_FailMonth.loc[:,"month"] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Fail_Month'], errors='coerce').dt.month
     row_df = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.year == date.today().year]
+    row_df = row_df[row_df.month == date.today().month]
     Customer_summary_Output_By_FailMonth_exchange = Customer_summary_Output_By_FailMonth[["Customer_Name","Product_Name","Fail QYT","year","month"]].groupby(by=["Customer_Name","Product_Name","year","month"]).sum()
     Customer_summary_Output_By_FailMonth_exchange.loc[:,"current_year"] = date.today().year
     Customer_summary_Output_By_FailMonth_exchange.loc[:,"current_month"] = date.today().month
@@ -137,6 +148,7 @@ def FAIL_QTY_MONITOR():
     Customer_summary_Output_By_FailMonth_exchange = Customer_summary_Output_By_FailMonth_exchange.ffill()
     Customer_summary_Output_By_FailMonth_exchange = Customer_summary_Output_By_FailMonth_exchange.bfill()
     Customer_summary_Output_By_FailMonth_exchange.loc[:,"incremental"] = Customer_summary_Output_By_FailMonth_exchange.groupby(["Customer_Name","Product_Name"])["Fail QYT"].diff()
+
 
     def filter_month(current_month : int):
         if date.today().day > 20:
@@ -223,23 +235,88 @@ def FAIL_QTY_MONITOR():
         report_text = report_text.join(report_tuple)
         df2 = row_df[row_df.Customer_name == customer]
         send_report(Subject="换件数量监控",content_1=f"您好:\n {report_text}, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。",df=customer_df, df2=df2,to_all=True)
+    return True
+
+import sqlite3
+import time
+from datetime import datetime, date
+
+DB_NAME = "task_log.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS task_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_name TEXT NOT NULL,
+            exec_date TEXT NOT NULL,
+            year_month TEXT NOT NULL,
+            success INTEGER NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def has_successful_run_this_month(task_name):
+    now = datetime.now()
+    year_month = now.strftime('%Y-%m')
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        SELECT COUNT(*) FROM task_log
+        WHERE task_name = ? AND year_month = ? AND success = 1
+    ''', (task_name, year_month))
+    result = c.fetchone()[0]
+    conn.close()
+    return result > 0
+
+def log_task(task_name, success):
+    now = datetime.now()
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute('''
+        INSERT INTO task_log (task_name, exec_date, year_month, success)
+        VALUES (?, ?, ?, ?)
+    ''', (task_name, now.isoformat(), now.strftime('%Y-%m'), int(success)))
+    conn.commit()
+    conn.close()
 
 if __name__ == "__main__":
+    init_db()
+
     while True:
         today = date.today().day
-        if today == 17:
-            try:
-                EDC_MONITOR()
-            except Exception as e:
-                print(e)
-            try:            
-                SHORT_KM_MONITOR()
-            except Exception as e:
-                print(e)
-            try:
-                FAIL_QTY_MONITOR()
-            except Exception as e:
-                print(e)
+        if today >= 23:
+            # EDC
+            if not has_successful_run_this_month("EDC_MONITOR"):
+                try:
+                    EDC_MONITOR()
+                    log_task("EDC_MONITOR", True)
+                except Exception as e:
+                    print("EDC Error:", e)
+                    log_task("EDC_MONITOR", False)
+
+            # SHORT_KM
+            if not has_successful_run_this_month("SHORT_KM_MONITOR"):
+                try:
+                    print("SHORT_KM processing...")
+                    SHORT_KM_MONITOR()
+                    log_task("SHORT_KM_MONITOR", True)
+                except Exception as e:
+                    print("SHORT_KM Error:", e)
+                    log_task("SHORT_KM_MONITOR", False)
+
+            # FAIL_QTY
+            if not has_successful_run_this_month("FAIL_QTY_MONITOR"):
+                try:
+                    FAIL_QTY_MONITOR()
+                    log_task("FAIL_QTY_MONITOR", True)
+                except Exception as e:
+                    print("FAIL_QTY Error:", e)
+                    log_task("FAIL_QTY_MONITOR", False)
         else:
-            print(f"today is {today}")
-        time.sleep(2 * 24 * 3600)
+            print(f"Today is {today}. Waiting for day >= 21.")
+
+        # Sleep for 2 days
+        time.sleep(1 * 24 * 3600)
