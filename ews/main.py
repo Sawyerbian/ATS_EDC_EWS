@@ -10,7 +10,116 @@ from config import *
 from send_mail import send_report
 from itertools import product
 from datetime import datetime, timedelta
-xlsx_dir_path = r"\\bosch.com\dfsRB\DfsCN\loc\WX4\Dept\TER\10_QMM\13 QMC\14 Reporting\00 Monthly quality reports\PowerBi\Customer 2023\Able to clean customers\Final_Output_folder"
+import shutil
+import glob
+from smbclient import register_session, scandir, open_file
+source_xlsx_dir_path = r"\\bosch.com\dfsRB\DfsCN\loc\WX4\Dept\TER\10_QMM\13 QMC\14 Reporting\00 Monthly quality reports\PowerBi\Customer 2023\Able to clean customers\Final_Output_folder\*"
+from dotenv import load_dotenv
+dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=dotenv_path)
+xlsx_dir_path = os.getenv("xlsx_dir_path", "./xlsx_files")
+
+# def sychronize_data():
+#     os.makedirs(os.path.dirname(xlsx_dir_path), exist_ok=True)
+#     print(f"{xlsx_dir_path} created.")
+#     logger.info(f"{xlsx_dir_path} created.")
+#     source_files_path = glob.glob(source_xlsx_dir_path)
+#     for path in source_files_path:
+#         print(f"find {path}")
+#         logger.info(f"find {path}")
+#     for source_path in glob.glob(source_xlsx_dir_path):
+#         filename = os.path.basename(source_path)
+#         dest_path = os.path.join(xlsx_dir_path, filename)
+#         shutil.copy2(source_path, dest_path)
+#         print(f"Copied: {filename}")
+#         logger.info(f"Copied: {filename}")
+
+#     print("Matching files copied!")
+
+
+
+
+
+
+from smbclient import register_session, path as smb_path, ClientConfig
+import os
+import logging
+
+# Configure detailed logging
+from smbclient import register_session, ClientConfig, listdir, open_file, mkdir
+import os
+import shutil
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+def synchronize_data():
+    try:
+        # Configure credentials globally
+        ClientConfig(
+            username=os.getenv("NT_USER"),
+            password=os.getenv("NT_PASSWORD"),
+            domain="bosch.com"
+        )
+        
+        # Server configurations
+        servers = [
+            {
+                "server": "SGP0DFS403.APAC.BOSCH.COM",
+                "share": "DfsCN",
+                "path": r"\loc\WX4\Dept\TER\10_QMM\13 QMC\14 Reporting\00 Monthly quality reports\PowerBi\Customer 2023\Able to clean customers\Final_Output_folder"
+            },
+            {
+                "server": "wx40fs02.apac.bosch.com",
+                "share": "Wx4_Dept_MOE$",
+                "path": r"\TER\10_QMM\13 QMC\14 Reporting\00 Monthly quality reports\PowerBi\Customer 2023\Able to clean customers\Final_Output_folder"
+            }
+        ]
+        
+        # Try each server configuration
+        for config in servers:
+            try:
+                full_path = rf"\\{config['server']}\{config['share']}{config['path']}"
+                print(f"Attempting to access: {full_path}")
+                
+                # Check if path exists
+                try:
+                    test_file = listdir(full_path)[0]  # Try listing first file
+                    print(f"Found {len(listdir(full_path))} files in directory")
+                    break
+                except Exception as e:
+                    print(f"Access failed: {str(e)}")
+                    continue
+            except Exception as e:
+                print(f"Configuration error: {str(e)}")
+                continue
+        else:
+            raise ValueError("Could not access any configured server paths")
+        
+        # Ensure local directory exists
+        os.makedirs(xlsx_dir_path, exist_ok=True)
+        
+        # Copy files
+        for filename in listdir(full_path):
+            if filename.lower().endswith('.xlsx'):
+                remote_path = rf"{full_path}\{filename}"
+                local_path = os.path.join(xlsx_dir_path, filename)
+                
+                try:
+                    with open_file(remote_path, mode='rb') as remote_file:
+                        with open(local_path, 'wb') as local_file:
+                            shutil.copyfileobj(remote_file, local_file)
+                    print(f"✓ Copied {filename}")
+                except Exception as e:
+                    print(f"✗ Failed to copy {filename}: {str(e)}")
+                    
+    except Exception as e:
+        print(f"❗ Critical error: {str(e)}")
+        raise
+
+
+
 def EDC_MONITOR():
     def filter_month(current_month : int):
         if date.today().day > 20:
@@ -282,19 +391,37 @@ def log_task(task_name, success):
     conn.commit()
     conn.close()
 
+import logging
+
+
+
 if __name__ == "__main__":
     init_db()
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    # logger.info("This is an info log")
+    # logger.error("Something went wrong")
 
     while True:
+        try:
+            synchronize_data()
+        except Exception as e:
+            logger.info("sychronize data")
+            logger.error(e)       
+
         today = date.today().day
         if today >= 23:
             # EDC
             if not has_successful_run_this_month("EDC_MONITOR"):
+                print("EDC_MONITOR processing...")
                 try:
                     EDC_MONITOR()
                     log_task("EDC_MONITOR", True)
                 except Exception as e:
                     print("EDC Error:", e)
+                    logger.info("EDC")
+                    logger.error(e)
                     log_task("EDC_MONITOR", False)
 
             # SHORT_KM
@@ -305,15 +432,20 @@ if __name__ == "__main__":
                     log_task("SHORT_KM_MONITOR", True)
                 except Exception as e:
                     print("SHORT_KM Error:", e)
+                    logger.info("SHORT_KM")
+                    logger.error(e)
                     log_task("SHORT_KM_MONITOR", False)
 
             # FAIL_QTY
             if not has_successful_run_this_month("FAIL_QTY_MONITOR"):
                 try:
+                    print("FAIL_QTY_MONITOR processing...")
                     FAIL_QTY_MONITOR()
                     log_task("FAIL_QTY_MONITOR", True)
                 except Exception as e:
                     print("FAIL_QTY Error:", e)
+                    logger.info("FAIL_QTY")
+                    logger.error(e)
                     log_task("FAIL_QTY_MONITOR", False)
         else:
             print(f"Today is {today}. Waiting for day >= 21.")
