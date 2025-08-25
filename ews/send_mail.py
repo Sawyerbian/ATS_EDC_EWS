@@ -10,14 +10,15 @@ from dotenv import load_dotenv
 dotenv_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=dotenv_path)
 NT_PASSWORD = os.getenv("NT_PASSWORD")
-
-
+from config import mailList
+mailList = mailList()
 # Prompt the user for connection info
 bianhaizhong = "haizhong.bian@cn.bosch.com"
 xupeng = "Peng.XU@cn.bosch.com"
 renguochun = "Guochun.REN@cn.bosch.com"
 zhangguangyao = "Guangyao.ZHANG@cn.bosch.com"
-servername = 'rb-owa.apac.bosch.com'
+# servername = 'rb-owa.apac.bosch.com'
+servername = "rb-smtp-auth.rbesz01.com"
 #servername = raw_input('Mail server name: ')
 username = 'bih1wx' 
 #username = raw_input('User name: ')
@@ -29,7 +30,7 @@ def df_to_html_clean(df):
     # Convert DataFrame to HTML without index
     return df.to_html(index=False, classes="styled-table", border=0, escape=False)
 
-def send_report(Subject=None, content_1= "", content_2="", df=pd.DataFrame(),df2=pd.DataFrame(),to_all= False):
+def send_report(Subject=None, content_1= "", content_2="", df=pd.DataFrame(),df2=pd.DataFrame(),to_all= False, to_group=False):
     msg = MIMEMultipart("alternative")
     # msg.attach(MIMEText(f'Dear : Mr./Ms. \n {content_1}.\n {content_2}.\n        Best Regards\n\thaizhong\n'))
 
@@ -84,12 +85,15 @@ def send_report(Subject=None, content_1= "", content_2="", df=pd.DataFrame(),df2
     msg.attach(MIMEText(html_content, "html"))
     msg.set_unixfrom('LiWenxing')
 
-
-
-
-
-    
-    if to_all:
+    if to_group:
+        group_member = []
+        for i, l in enumerate(mailList):
+            if l[to_group] != "None":
+                msg['To'] = email.utils.formataddr((str(i), l[to_group]))
+                if l[to_group] not in group_member:
+                    group_member.append(l[to_group])
+        print(group_member)
+    elif to_all:
         msg['To'] = email.utils.formataddr(('bianhaizhong', bianhaizhong))
         msg['To'] = email.utils.formataddr(("xupeng", xupeng))
         msg['To'] = email.utils.formataddr(("renguochun", renguochun))
@@ -114,7 +118,9 @@ def send_report(Subject=None, content_1= "", content_2="", df=pd.DataFrame(),df2
             server.ehlo() # re-identify ourselves over TLS connection
 
         server.login(username, NT_PASSWORD)
-        if to_all:
+        if to_group:
+            server.sendmail('haizhong.bian@cn.bosch.com', group_member, msg.as_string())
+        elif to_all:
             server.sendmail('haizhong.bian@cn.bosch.com', [bianhaizhong,xupeng,renguochun,zhangguangyao], msg.as_string())
         else:
             server.sendmail('haizhong.bian@cn.bosch.com', [bianhaizhong], msg.as_string())
@@ -122,4 +128,4 @@ def send_report(Subject=None, content_1= "", content_2="", df=pd.DataFrame(),df2
         server.quit()
 
 if __name__ == "__main__":
-    send_report(Subject="test_sending_mail", to_all=False)
+    send_report(Subject="test_sending_mail", to_group="BFCEC")

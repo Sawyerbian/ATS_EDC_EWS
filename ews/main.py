@@ -123,9 +123,9 @@ def synchronize_data():
 def EDC_MONITOR():
     def filter_month(current_month : int):
         if date.today().day > 20:
-            return current_month
-        else:
             return current_month - 1
+        else:
+            return current_month - 2
     Customer_summary_Output_By_FailMonth = pd.read_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output_By_FailMonth.xlsx"))
 
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.Fail_Month.notna()]
@@ -171,16 +171,16 @@ def EDC_MONITOR():
         report_tuple = tuple(report_list)
         report_text = report_text.join(report_tuple)
         df2 = row_df[row_df.Customer_Name == customer]
-        send_report(Subject="EDC Warning",content_1=f"您好， {Customer_Name}客户,{current_year}年{current_month}月YTD, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。",df=customer_df, df2=df2, to_all=True)
+        send_report(Subject="EDC Warning",content_1=f"您好， {Customer_Name}客户,{current_year}年{current_month}月YTD, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。",df=customer_df, df2=df2, to_all=False, to_group=customer)
         time.sleep(10)
     return True
 
 def SHORT_KM_MONITOR():
     def filter_month(current_month : int):
         if date.today().day > 20:
-            return current_month
+            return current_month -1
         else:
-            return current_month - 1
+            return current_month - 2
     Customer_summary_Output_By_FailMonth = pd.read_excel(os.path.join(xlsx_dir_path,"Customer_summary_Output.xlsx"))
     Customer_summary_Output_By_FailMonth = Customer_summary_Output_By_FailMonth[Customer_summary_Output_By_FailMonth.Mileage <= 1000]
     Customer_summary_Output_By_FailMonth['year'] = pd.to_datetime(Customer_summary_Output_By_FailMonth['Statistic month'], errors='coerce').dt.year
@@ -225,7 +225,7 @@ def SHORT_KM_MONITOR():
         report_text = report_text.join(report_tuple)
         df2 = row_df[row_df.Customer == customer]
         new_qty = len(df2)
-        send_report(Subject="1000KM Complaint Warning",content_1=f"您好:\n {report_text}, {current_month}月新增<1000Km失效{new_qty}件,请调查原因并提供改进措施，谢谢。", df=customer_df,df2=df2,to_all=True)
+        send_report(Subject="1000KM Complaint Warning",content_1=f"您好:\n {report_text}, {current_month}月新增<1000Km失效{new_qty}件,请调查原因并提供改进措施，谢谢。", df=customer_df,df2=df2,to_all=False, to_group=customer)
         time.sleep(10)
     return True
 
@@ -261,9 +261,9 @@ def FAIL_QTY_MONITOR():
 
     def filter_month(current_month : int):
         if date.today().day > 20:
-            return [current_month - 1, current_month]
+            return [current_month - 2, current_month-1]
         else:
-            return [current_month - 2, current_month - 1]
+            return [current_month - 3, current_month - 2]
 
     Customer_summary_Output_By_FailMonth_exchange.loc[:,"current_month"] = Customer_summary_Output_By_FailMonth_exchange.loc[:,"current_month"].apply(lambda x:filter_month(x))
     Customer_summary_Output_By_FailMonth_exchange_2month = Customer_summary_Output_By_FailMonth_exchange[Customer_summary_Output_By_FailMonth_exchange.month.isin(Customer_summary_Output_By_FailMonth_exchange.loc[:,"current_month"].drop_duplicates().values[0])]
@@ -326,7 +326,7 @@ def FAIL_QTY_MONITOR():
         report_tuple = tuple(report_list)
         report_text = report_text.join(report_tuple)
         df2 = row_df[row_df.Customer_name == customer]
-        send_report(Subject="换件数量监控",content_1=f"您好:\n {report_text}, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。", df=customer_df,df2=df2,to_all=True)
+        send_report(Subject="换件数量监控",content_1=f"您好:\n {report_text}, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。", df=customer_df,df2=df2,to_all=False, to_group=customer)
         time.sleep(10)
 
     for customer in Customer_summary_Output_By_FailMonth_exchange_12month.Customer_Name.unique():
@@ -343,7 +343,7 @@ def FAIL_QTY_MONITOR():
         report_tuple = tuple(report_list)
         report_text = report_text.join(report_tuple)
         df2 = row_df[row_df.Customer_name == customer]
-        send_report(Subject="换件数量监控",content_1=f"您好:\n {report_text}, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。",df=customer_df, df2=df2,to_all=True)
+        send_report(Subject="换件数量监控",content_1=f"您好:\n {report_text}, 已超过公司质量目标，请调查原因及制定改善措施，谢谢。",df=customer_df, df2=df2,to_all=False, to_group=customer)
     return True
 
 import sqlite3
@@ -412,7 +412,6 @@ if __name__ == "__main__":
 
         today = date.today().day
         if today >= 23:
-            # EDC
             if not has_successful_run_this_month("EDC_MONITOR"):
                 print("EDC_MONITOR processing...")
                 try:
@@ -448,7 +447,8 @@ if __name__ == "__main__":
                     logger.error(e)
                     log_task("FAIL_QTY_MONITOR", False)
         else:
-            print(f"Today is {today}. Waiting for day >= 21.")
+            print(f"Today is {today}. Waiting for day >= 23.")
 
         # Sleep for 2 days
+        logger.info("Sleeping")
         time.sleep(1 * 24 * 3600)
